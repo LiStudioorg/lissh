@@ -45,7 +45,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -184,6 +186,8 @@ fun KeyEditScreen(db: Db, keyId: Long?, onDone: () -> Unit) {
     var content by remember { mutableStateOf(initial?.privateKey ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
     var generating by remember { mutableStateOf(false) }
+    var generatedPub by remember { mutableStateOf<String?>(null) }
+    val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -247,19 +251,22 @@ fun KeyEditScreen(db: Db, keyId: Long?, onDone: () -> Unit) {
                     if (generating) return@OutlinedButton
                     generating = true
                     scope.launch {
-                        val pem = runCatching {
+                        val result = runCatching {
                             withContext(Dispatchers.IO) {
                                 val jsch = JSch()
                                 val pair = KeyPair.genKeyPair(jsch, KeyPair.RSA, 2048)
-                                val out = ByteArrayOutputStream()
-                                pair.writePrivateKey(out)
-                                String(out.toByteArray(), Charsets.UTF_8)
+                                val priv = ByteArrayOutputStream()
+                                pair.writePrivateKey(priv)
+                                val pub = ByteArrayOutputStream()
+                                pair.writePublicKey(pub, "lissh")
+                                priv.toString(Charsets.UTF_8) to pub.toString(Charsets.UTF_8)
                             }
                         }.getOrNull()
-                        if (pem == null) {
+                        if (result == null) {
                             error = "生成失败（部分 ROM 限制 RSA）。可手动粘贴 OpenSSH/PEM 私钥。"
                         } else {
-                            content = pem
+                            content = result.first      // 私钥 PEM
+                            generatedPub = result.second
                             if (name.isBlank()) name = "RSA-2048"
                         }
                         generating = false
@@ -274,6 +281,22 @@ fun KeyEditScreen(db: Db, keyId: Long?, onDone: () -> Unit) {
                     Spacer(Modifier.size(8.dp))
                 }
                 Text(if (generating) "生成中…" else "一键生成 RSA-2048 密钥")
+            }
+
+            generatedPub?.let { pub ->
+                OutlinedButton(
+                    onClick = {
+                        clipboard.setText(AnnotatedString(pub))
+                        error = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                ) { Text("复制公钥（id_rsa.pub）") }
+                Text(
+                    "公钥已生成并复制到剪贴板，把它写入服务器 ~/.ssh/authorized_keys。",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             error?.let {

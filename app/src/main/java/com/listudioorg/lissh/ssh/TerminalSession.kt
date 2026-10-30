@@ -60,6 +60,9 @@ class TerminalSession(val host: Host) {
     private var closedByUser = false
     private var dbRef: Db? = null
 
+    /** 会话代际：重连/关闭时 +1，旧协程的失败回调据此自我抑制 */
+    private var epoch = 0
+
     /** UTF-8 长字节跨界续接：保留未解码完整的尾部字节 */
     private val decoder = Charsets.UTF_8.newDecoder()
         .onMalformedInput(CodingErrorAction.REPLACE)
@@ -71,20 +74,22 @@ class TerminalSession(val host: Host) {
         closedByUser = false
         stateState.value = ConnState.CONNECTING
         errorState.value = ""
+        epoch += 1
+        val myEpoch = epoch
         val s = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         scope = s
         s.launch {
             try {
-                connectAndRead()
+                connectAndRead(myEpoch)
             } catch (t: Throwable) {
-                if (!closedByUser) {
+                if (!closedByUser && epoch == myEpoch) {
                     fail("${t.javaClass.simpleName}: ${t.message ?: "连接失败"}")
                 }
             }
         }
     }
 
-    private suspend fun connectAndRead() {
+    private suspend fun connectAndRead(myEpoch: Int) {
         val db = dbRef ?: return
         buffer.info("正在连接 ${host.username}@${host.hostname}:${host.port}（${host.authType.label} 认证）…")
 
@@ -112,10 +117,10 @@ class TerminalSession(val host: Host) {
         channel = ch
         stateState.value = ConnState.CONNECTED
         buffer.info("已连接 ✓")
-        readLoop(ch.inputStream ?: throw IOException("无法获取输入流"))
+        readLoop(ch.inputStream ?: throw IOException("无法获取输入流"), myEpoch)
     }
 
-    private fun readLoop(input: InputStream) {
+    private fun readLoop(input: InputStream, myEpoch: Int) {
         val buf = ByteArray(8192)
         while (true) {
             val n = if (closedByUser) -1 else try {
@@ -127,7 +132,7 @@ class TerminalSession(val host: Host) {
             val decoded = decodeChunk(buf, n)
             if (decoded.isNotEmpty()) buffer.appendChunk(decoded)
         }
-        if (!closedByUser) fail("远程主机已断开连接")
+        if (!closedByUser && epoch == myEpoch) fail("远程主机已断开连接")
     }
 
     /** UTF-8 解码：处理跨 chunk 的多字节序列 */
@@ -181,6 +186,7 @@ class TerminalSession(val host: Host) {
     /** 断开并清理（用户关闭标签页） */
     fun close() {
         closedByUser = true
+        epoch += 1
         runCatching { channel?.disconnect() }
         runCatching { session?.disconnect() }
         scope?.cancel()

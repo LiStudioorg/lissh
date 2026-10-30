@@ -74,7 +74,6 @@ import com.listudioorg.lissh.TerminalPrefs
 import com.listudioorg.lissh.data.Db
 import com.listudioorg.lissh.data.Host
 import com.listudioorg.lissh.ssh.ConnState
-import com.listudioorg.lissh.ssh.TerminalBg
 import com.listudioorg.lissh.ssh.TerminalDefaultFg
 import com.listudioorg.lissh.ssh.TerminalSession
 import com.listudioorg.lissh.ssh.TerminalTabs
@@ -134,7 +133,7 @@ fun TerminalScreen(db: Db, hostId: Long?, onBack: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(TerminalBg)
+            .background(Color(TerminalPrefs.bgColor))
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
             .imePadding(),
     ) {
@@ -479,7 +478,7 @@ fun ExtraKeysBar(session: TerminalSession) {
             KeyCap(label = "⇧Tab", fg = BarLabel) { sendRaw(Ansi.SHIFT_TAB) }
             KeyCap(
                 label = "Ctrl",
-                fg = if (ctrl) TerminalBg else BarLabel,
+                fg = if (ctrl) Color(0xFF000000) else BarLabel,
                 bg = if (ctrl) TerminalDefaultFg else BarBgLight,
             ) { ctrl = !ctrl }
             KeyCap(label = "Esc", fg = BarLabel) { sendCtrl(Ansi.ESCAPE) }
