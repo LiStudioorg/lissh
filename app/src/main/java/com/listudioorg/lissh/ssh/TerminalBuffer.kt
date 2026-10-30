@@ -4,7 +4,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.AnnotatedRange
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -148,19 +147,25 @@ class TerminalBuffer {
     @Synchronized
     fun build(): AnnotatedString {
         flushSeg()
-        val out = ArrayList<AnnotatedRange<SpanStyle>>(spans.size)
+        val out = ArrayList<Pair<IntRange, SpanStyle>>(spans.size)
         for (s in spans) {
             val start = s.start.coerceIn(0, text.length)
             val end = s.end.coerceIn(start, text.length)
             if (end <= start) continue
-            val style = SpanStyle(
-                color = s.fg ?: TerminalDefaultFg,
-                background = s.bg ?: Color.Unspecified,
-                fontWeight = if (s.bold) FontWeight.Bold else null,
+            out.add(
+                IntRange(start, end - 1) to SpanStyle(
+                    color = s.fg ?: TerminalDefaultFg,
+                    background = s.bg ?: Color.Unspecified,
+                    fontWeight = if (s.bold) FontWeight.Bold else null,
+                )
             )
-            out.add(AnnotatedRange(start, end, style))
         }
-        return AnnotatedString(text.toString(), spanStyles = out)
+        val builder = AnnotatedString.Builder()
+        builder.append(text.toString())
+        for ((range, style) in out) {
+            builder.addStyle(style, range.first, range.last + 1)
+        }
+        return builder.toAnnotatedString()
     }
 
     // ---------------- 解析内部 ----------------
