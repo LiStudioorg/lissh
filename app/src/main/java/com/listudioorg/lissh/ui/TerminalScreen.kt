@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FirstPage
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
@@ -116,7 +117,7 @@ private object Ansi {
  * ============================================================ */
 
 @Composable
-fun TerminalScreen(db: Db, hostId: Long?, onBack: () -> Unit) {
+fun TerminalScreen(db: Db, hostId: Long?, onBack: () -> Unit, onOpenSftp: () -> Unit = {}) {
     var showPicker by remember { mutableStateOf(false) }
     val handled = rememberSaveable { mutableStateOf(false) }
 
@@ -137,7 +138,7 @@ fun TerminalScreen(db: Db, hostId: Long?, onBack: () -> Unit) {
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
             .imePadding(),
     ) {
-        TabStrip(onBack = onBack, onAdd = { showPicker = true })
+        TabStrip(onBack = onBack, onAdd = { showPicker = true }, onOpenSftp = onOpenSftp)
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (session == null) {
@@ -177,7 +178,7 @@ private val TabTextNormal = Color(0xFF8A929E)
 private val TabStripAdd = Color(0xFF9AA3AF)
 
 @Composable
-private fun TabStrip(onBack: () -> Unit, onAdd: () -> Unit) {
+private fun TabStrip(onBack: () -> Unit, onAdd: () -> Unit, onOpenSftp: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -211,6 +212,15 @@ private fun TabStrip(onBack: () -> Unit, onAdd: () -> Unit) {
                     onClose = { TerminalTabs.close(index) },
                 )
             }
+        }
+
+        // SFTP 入口：终端 Tab 旁的文件夹图标
+        IconButton(onClick = onOpenSftp, enabled = TerminalTabs.selected != null) {
+            Icon(
+                Icons.Rounded.FolderOpen,
+                contentDescription = "SFTP 文件管理",
+                tint = if (TerminalTabs.selected != null) TabStripAdd else Color(0xFF3A3F47),
+            )
         }
 
         IconButton(onClick = onAdd) {

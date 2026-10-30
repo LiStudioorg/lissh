@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.jcraft.jsch.ChannelShell
+import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSch
 import com.listudioorg.lissh.data.AuthType
 import com.listudioorg.lissh.data.Db
@@ -160,6 +161,21 @@ class TerminalSession(val host: Host) {
         val consumed = input.position()
         pending = if (consumed < total) combined.copyOfRange(consumed, total) else ByteArray(0)
         return sb.toString()
+    }
+
+    /**
+     * 基于已连接的 JSch Session 打开 SFTP 通道（供 SFTP 文件传输页使用）。
+     * 必须在 Dispatchers.IO 中调用。
+     */
+    fun openSftpChannel(timeoutMs: Int = 10_000): ChannelSftp {
+        val ses = session ?: throw IOException("无已连接的 SSH 会话")
+        if (stateState.value != ConnState.CONNECTED) {
+            throw IOException("请先在终端页连接主机，再进入 SFTP")
+        }
+        if (closedByUser) throw IOException("会话已关闭")
+        val ch = ses.openChannel("sftp") as ChannelSftp
+        ch.connect(timeoutMs)
+        return ch
     }
 
     /** 将按键字符串写入远程（UI 线程调用，写入量均为几字节） */

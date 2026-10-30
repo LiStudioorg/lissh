@@ -15,9 +15,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.listudioorg.lissh.data.Db
+import com.listudioorg.lissh.ssh.TerminalTabs
 import com.listudioorg.lissh.ui.HostEditScreen
 import com.listudioorg.lissh.ui.KeyEditScreen
 import com.listudioorg.lissh.ui.MainChrome
+import com.listudioorg.lissh.ui.SftpScreen
+import com.listudioorg.lissh.ui.SettingsScreen
 import com.listudioorg.lissh.ui.TerminalScreen
 import com.listudioorg.lissh.ui.theme.LiSSHTheme
 
@@ -50,7 +53,7 @@ private fun AppNavGraph(db: Db) {
                 onAddHost = { nav.navigate("host_edit") },
                 onEditHost = { host -> nav.navigate("host_edit?id=${host.id}") },
                 onAddKey = { nav.navigate("key_edit") },
-                onEditKey = { keyId -> nav.navigate("key_edit?id=$keyId") },
+                onEditKey = { key -> nav.navigate("key_edit?id=${key.id}") },
             )
         }
 
@@ -87,7 +90,27 @@ private fun AppNavGraph(db: Db) {
             }),
         ) { entry ->
             val hostId = entry.arguments?.getLong("hostId") ?: -1L
-            TerminalScreen(db = db, hostId = hostId.takeIf { it > 0 }, onBack = { nav.popBackStack() })
+            TerminalScreen(
+                db = db,
+                hostId = hostId.takeIf { it > 0 },
+                onBack = { nav.popBackStack() },
+                onOpenSftp = {
+                    // SFTP 入口：终端 Tab 旁的文件夹图标 → 借用当前已连接会话
+                    TerminalTabs.selected?.host?.id?.let { id -> nav.navigate("sftp?hostId=$id") }
+                },
+            )
+        }
+
+        // SFTP 文件传输页
+        composable(
+            route = "sftp?hostId={hostId}",
+            arguments = listOf(navArgument("hostId") {
+                type = NavType.LongType
+                defaultValue = -1L
+            }),
+        ) { entry ->
+            val hostId = entry.arguments?.getLong("hostId") ?: -1L
+            SftpScreen(hostId = hostId, onBack = { nav.popBackStack() })
         }
     }
 }
